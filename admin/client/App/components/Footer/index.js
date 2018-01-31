@@ -23,15 +23,25 @@ var Footer = React.createClass({
 		const { User, user } = this.props;
 		if (!user) return null;
 
-		return (
-			<span>
-				<span> Signed in as </span>
-				<a href={`${Keystone.adminPath}/${User.path}/${user.id}`} tabIndex="-1" className={css(classes.link)}>
-					{user.name}
-				</a>
-				<span>.</span>
-			</span>
-		);
+		if (User) {
+			return (
+				<span>
+					<span> Signed in as </span>
+					<a href={`${Keystone.adminPath}/${User.path}/${user.id}`} tabIndex="-1" className={css(classes.link)}>
+						{user.name}
+					</a>
+					<span>.</span>
+				</span>
+			);
+		} else {
+			return (
+				<span>
+					<span> Signed in as </span>					
+						{user.name}					
+					<span>.</span>
+				</span>
+			);
+		}
 	},
 	render () {
 		const { backUrl, brand, appversion, version } = this.props;

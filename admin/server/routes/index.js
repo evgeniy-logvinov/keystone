@@ -22,22 +22,27 @@ function getArrayContainsLists(keystoneLists, userLists) {
 
 async function getUserLists(user, keystone, permType) {
 	let userLists = []
-	const PermissionList = keystone.list(keystone.get('permission model'))
+	const PermissionList = keystone.list(keystone.get('permission model')).model
+	const PermissionTypeList = keystone.list(keystone.get('permission type model')).model
 
 	if (user && user.role) {
-		await PermissionList.model
+		const permTypeList = await PermissionTypeList.findOne({
+				name: permType
+			})
+			.exec()
+		await PermissionList
 			.find({
 				role: keystone.mongoose.Types.ObjectId(user.role),
-				permType: permType
+				permType: permTypeList._id
 			})
 			.exec()
 			.then(permissions => {
 				permissions.forEach(function (perm) {
-					userLists.push(perm.listName)
+					userLists.push(perm.listName)					
 				})
 			})
 			.catch(err => {
-				throw new Error(err)	
+				throw new Error(err)
 			})
 	}
 
@@ -68,7 +73,7 @@ function getSections(keystoneSections, userLists) {
 			delete sections[key]
 		})
 	} else {
-		throw new Error('Keystone nav.sections is undefined')	
+		throw new Error('Keystone nav.sections is undefined')
 	}
 
 	return sections.filter(function (n) {
@@ -88,7 +93,7 @@ function getBySection(keystoneBySection, userLists) {
 				keystoneBySection[key].lists = newBySectionLists
 			}
 		} else {
-			throw new Error('Keystone nav.by.section.lists is undefined')	
+			throw new Error('Keystone nav.by.section.lists is undefined')
 		}
 	}
 
@@ -107,12 +112,12 @@ function getNav(keystone, userLists) {
 			if (nav.by.list) {
 				byList = getObjectContainsLists(nav.by.list, userLists)
 			} else {
-				throw new Error('Keystone nav.by.list is undefined')	
+				throw new Error('Keystone nav.by.list is undefined')
 			}
 			if (nav.by.section) {
 				bySection = getBySection(nav.by.section, userLists)
 			} else {
-				throw new Error('Keystone nav.by.section is undefined')	
+				throw new Error('Keystone nav.by.section is undefined')
 			}
 		} else {
 			throw new Error('Keystone nav is undefined')
@@ -135,21 +140,22 @@ module.exports = async function IndexRoute(req, res) {
 	var lists = {};
 	var orphanedLists = []
 
-	if (keystone.get('permission model') && keystone.get('role model')) {
+	if (keystone.get('permission model') && keystone.get('role model') && keystone.get('permission type model') && keystone.get('access permission type')) {
 		try {
-			let userLists = await getUserLists(req.user, keystone, 'delete')
+			const accessPermTypeName = keystone.get('access permission type')
+			let userLists = await getUserLists(req.user, keystone, accessPermTypeName)
 			keystone.nav = getNav(keystone, userLists)
-	
+
 			_.forEach(keystone.lists, function (list, key) {
 				lists[key] = list.getOptions();
 			});
-	
+
 			lists = getObjectContainsLists(lists, userLists)
-	
+			
 			orphanedLists = keystone.getOrphanedLists().map(function (list) {
 				return _.pick(list, ['key', 'label', 'path']);
 			});
-	
+
 			orphanedLists = getArrayContainsLists(orphanedLists, userLists)
 		} catch (err) {
 			if (err) {
@@ -181,7 +187,9 @@ module.exports = async function IndexRoute(req, res) {
 		appversion: keystone.get('appversion'),
 		backUrl: backUrl,
 		brand: keystone.get('brand'),
-		csrf: { header: {} },
+		csrf: {
+			header: {}
+		},
 		devMode: !!process.env.KEYSTONE_DEV,
 		lists: lists,
 		nav: keystone.nav,
@@ -210,9 +218,9 @@ module.exports = async function IndexRoute(req, res) {
 	};
 	keystoneData.csrf.header[keystone.security.csrf.CSRF_HEADER_KEY] = keystone.security.csrf.getToken(req, res);
 
-	var codemirrorPath = keystone.get('codemirror url path')
-		? '/' + keystone.get('codemirror url path')
-		: '/' + keystone.get('admin path') + '/js/lib/codemirror';
+	var codemirrorPath = keystone.get('codemirror url path') ?
+		'/' + keystone.get('codemirror url path') :
+		'/' + keystone.get('admin path') + '/js/lib/codemirror';
 
 	var locals = {
 		adminPath: keystoneData.adminPath,
@@ -241,7 +249,9 @@ module.exports = async function IndexRoute(req, res) {
 		locals.cloudinaryScript = cloudinary.cloudinary_js_config();
 	};
 
-	ejs.renderFile(templatePath, locals, { delimiter: '%' }, function (err, str) {
+	ejs.renderFile(templatePath, locals, {
+		delimiter: '%'
+	}, function (err, str) {
 		if (err) {
 			console.error('Could not render Admin UI Index Template:', err);
 			return res.status(500).send(keystone.wrapHTMLError('Error Rendering Admin UI', err.message));
